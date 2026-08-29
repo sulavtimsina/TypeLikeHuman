@@ -30,7 +30,7 @@ One thing that will bite you: the Accessibility grant is tied to the app's code 
 
 Copy some text. Click into the field where you want it. Left-click the menu bar icon: after a silent five second pause, the clipboard is typed out. Press Escape at any point to stop, or click the icon again.
 
-Right-click the icon for the menu. Type Clip does the same as a left click, the Speed submenu sets words per minute from 30 to 70, and the Mistakes submenu sets what share of characters get a wrong key first, from none up to 30%.
+Right-click the icon for the menu. The gauge submenu sets words per minute from 30 to 70, and the cross submenu sets what share of characters get a wrong key first, from none up to 30%.
 
 ## Where to change the behaviour
 

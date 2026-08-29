@@ -51,10 +51,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildMenu() {
         let menu = NSMenu()
 
-        menu.addItem(withTitle: "Type Clip", action: #selector(typeClipboard), keyEquivalent: "")
-
-        menu.addItem(.separator())
-
         let speed = NSMenu()
         for wpm in [30.0, 40.0, 50.0, 60.0, 70.0] {
             let item = NSMenuItem(title: "\(Int(wpm)) wpm", action: #selector(setSpeed(_:)), keyEquivalent: "")
@@ -63,7 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.target = self
             speed.addItem(item)
         }
-        let speedItem = NSMenuItem(title: "Speed", action: nil, keyEquivalent: "")
+        let speedItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        speedItem.image = NSImage(systemSymbolName: "gauge.with.needle", accessibilityDescription: "Speed")
         speedItem.submenu = speed
         menu.addItem(speedItem)
 
@@ -76,7 +73,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.target = self
             typos.addItem(item)
         }
-        let typosItem = NSMenuItem(title: "Mistakes", action: nil, keyEquivalent: "")
+        let typosItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        typosItem.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Mistakes")
         typosItem.submenu = typos
         menu.addItem(typosItem)
 
