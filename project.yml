@@ -1,0 +1,37 @@
+name: FancyKeyboard
+options:
+  bundleIdPrefix: com.fancykeyboard
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+targets:
+  FancyKeyboard:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: files
+        includes:
+          - "TypingEngine.swift"
+          - "AppDelegate.swift"
+    info:
+      path: FancyKeyboard/Info.plist
+      properties:
+        CFBundleName: Fancy Keyboard
+        CFBundleDisplayName: Fancy Keyboard
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        LSUIElement: true
+        NSPrincipalClass: NSApplication
+        NSHumanReadableCopyright: ""
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fancykeyboard.app
+        PRODUCT_NAME: Fancy Keyboard
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        CODE_SIGN_ENTITLEMENTS: ""
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: NO
+        COMBINE_HIDPI_IMAGES: YES
