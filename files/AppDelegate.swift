@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(typosItem)
 
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
 
         for item in menu.items where item.target == nil && item.action != #selector(NSApplication.terminate(_:)) {
             item.target = self
