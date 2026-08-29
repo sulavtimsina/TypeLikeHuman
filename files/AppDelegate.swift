@@ -11,7 +11,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var countdownTimer: Timer?
     private var abortMonitor: Any?
-    private var lastFileURL: URL?
 
     static func main() {
         let app = NSApplication.shared
@@ -52,12 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildMenu() {
         let menu = NSMenu()
 
-        menu.addItem(withTitle: "Type Clipboard", action: #selector(typeClipboard), keyEquivalent: "")
-        let fileTitle = lastFileURL.map { "Type \($0.lastPathComponent)" } ?? "Type File…"
-        menu.addItem(withTitle: fileTitle, action: #selector(typeFile), keyEquivalent: "")
-        if lastFileURL != nil {
-            menu.addItem(withTitle: "Choose Another File…", action: #selector(chooseFile), keyEquivalent: "")
-        }
+        menu.addItem(withTitle: "Type Clip", action: #selector(typeClipboard), keyEquivalent: "")
 
         menu.addItem(.separator())
 
@@ -113,25 +107,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Empty clipboard: do nothing, quietly.
         guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else { return }
         begin(text)
-    }
-
-    @objc private func typeFile() {
-        if let url = lastFileURL, let text = try? String(contentsOf: url, encoding: .utf8) {
-            begin(text)
-        } else {
-            chooseFile()
-        }
-    }
-
-    @objc private func chooseFile() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.plainText]
-        panel.allowsMultipleSelection = false
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        lastFileURL = url
-        buildMenu()
-        if let text = try? String(contentsOf: url, encoding: .utf8) { begin(text) }
     }
 
     // MARK: - Run

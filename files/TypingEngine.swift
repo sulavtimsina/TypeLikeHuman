@@ -11,11 +11,11 @@ final class TypingEngine {
 
     struct Profile {
         /// Words per minute, counting a word as five characters.
-        var wpm: Double = 50
+        var wpm: Double = 40
         /// Spread of the lognormal delay. Higher is more erratic.
         var jitter: Double = 0.34
         /// Chance per character of hitting a neighbouring key first (0 to 0.3).
-        var typoRate: Double = 0.05
+        var typoRate: Double = 0.20
         /// Chance per character of pausing as if thinking.
         var hesitationRate: Double = 0.03
     }
