@@ -32,6 +32,12 @@ Copy some text. Click into the field where you want it. Left-click the menu bar 
 
 Right-click the icon for the menu. The gauge submenu sets words per minute from 30 to 70, and the cross submenu sets what share of characters get a wrong key first, from none up to 30%.
 
+## The Hubstaff countdown icon
+
+Next to the keyboard icon there is a second item showing 10. Click it and a ten minute countdown starts: the number drops once a minute, and when it reaches 0 the app stops the Hubstaff timer if it is running, using Hubstaff's scripted control CLI (see https://support.hubstaff.com/what-is-scripted-control/ — the `HubstaffCLI stop` command inside the Hubstaff app bundle). Clicking the number again while it is counting cancels the countdown and resets it to 10.
+
+Because the CLI ships inside Hubstaff.app itself, this works unchanged on any machine you clone and build this on — the app looks for Hubstaff in /Applications and ~/Applications and falls back to a Spotlight search, so there is nothing to configure. The first time the stop fires on a machine, Hubstaff pops up a dialog asking whether to allow scripted control; choose "Always allow" and it never asks again. If Hubstaff isn't running when the countdown hits zero, nothing happens, which is the point — there is no timer to stop.
+
 ## Where to change the behaviour
 
 Everything about the rhythm lives in TypingEngine.Profile and the two timing functions below it. The delay function is a lognormal draw around the mean interval derived from words per minute; raising jitter makes the typing more erratic, lowering it makes it more mechanical. trailingPause adds the extra beat after sentence and clause punctuation. The hesitation logic in the main loop adds the longer occasional pauses.

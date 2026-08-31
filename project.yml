@@ -14,6 +14,7 @@ targets:
         includes:
           - "TypingEngine.swift"
           - "AppDelegate.swift"
+          - "HubstaffCountdown.swift"
     info:
       path: FancyKeyboard/Info.plist
       properties:

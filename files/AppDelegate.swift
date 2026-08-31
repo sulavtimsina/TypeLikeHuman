@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var countdownTimer: Timer?
     private var abortMonitor: Any?
+    private var hubstaffCountdown: HubstaffCountdown?
 
     static func main() {
         let app = NSApplication.shared
@@ -23,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         setIcon("keyboard")
+        hubstaffCountdown = HubstaffCountdown()
         buildMenu()
         installClickHandler()
         requestAccessibilityIfNeeded()
