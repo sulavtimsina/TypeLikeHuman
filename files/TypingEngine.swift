@@ -18,13 +18,14 @@ final class TypingEngine {
         var typoRate: Double = 0.20
         /// Chance per character of pausing as if thinking.
         var hesitationRate: Double = 0.03
-        /// Editors that auto-indent add their own leading whitespace when you
-        /// press Return, which then stacks with the indentation in the text and
-        /// walks the code to the right one line at a time. With this on, every
-        /// newline is followed by "select back to the start of the line", so the
-        /// first character of the next line overwrites whatever the editor put
-        /// there and the text's own indentation is what survives.
-        var clearAutoIndent: Bool = false
+    }
+
+    /// What the engine types. A caller that knows about the target — say, that
+    /// it is a code editor which indents by itself — can build the keystrokes
+    /// itself instead of handing over a plain string.
+    enum Stroke {
+        case text(String)
+        case key(CGKeyCode, CGEventFlags)
     }
 
     private let queue = DispatchQueue(label: "com.example.humantype.engine", qos: .userInitiated)
@@ -45,6 +46,10 @@ final class TypingEngine {
     }
 
     func type(_ text: String, profile: Profile = Profile()) {
+        type(Self.strokes(for: text), profile: profile)
+    }
+
+    func type(_ strokes: [Stroke], profile: Profile = Profile()) {
         lock.lock()
         guard !running else { lock.unlock(); return }
         running = true
@@ -53,15 +58,31 @@ final class TypingEngine {
 
         queue.async { [weak self] in
             guard let self else { return }
-            let aborted = self.run(text, profile: profile)
+            let aborted = self.run(strokes, profile: profile)
             self.lock.lock(); self.running = false; self.lock.unlock()
             DispatchQueue.main.async { self.onFinish?(aborted) }
         }
     }
 
+    /// Plain text: every line break is a Return, everything else is typed.
+    static func strokes(for text: String) -> [Stroke] {
+        var out: [Stroke] = []
+        var run = ""
+        for character in text {
+            if character == "\n" || character == "\r" {
+                if !run.isEmpty { out.append(.text(run)); run = "" }
+                out.append(.key(CGKeyCode(kVK_Return), []))
+            } else {
+                run.append(character)
+            }
+        }
+        if !run.isEmpty { out.append(.text(run)) }
+        return out
+    }
+
     // MARK: - Main loop
 
-    private func run(_ text: String, profile: Profile) -> Bool {
+    private func run(_ strokes: [Stroke], profile: Profile) -> Bool {
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return true }
         source.setLocalEventsFilterDuringSuppressionState(
             [.permitLocalKeyboardEvents, .permitLocalMouseEvents],
@@ -72,7 +93,22 @@ final class TypingEngine {
         var deadline = Date().timeIntervalSinceReferenceDate
         var sinceLastHesitation = 0
 
-        for character in text {
+        for stroke in strokes {
+            if isCancelled { return true }
+
+            // A named key: Return, Tab, Shift+Tab. No typos on these — people
+            // do not mistype Return — but they still take a beat.
+            guard case .text(let chunk) = stroke else {
+                guard case .key(let code, let flags) = stroke else { continue }
+                deadline += delay(base: base, jitter: profile.jitter) * 2
+                if code == CGKeyCode(kVK_Return) { deadline += Double.random(in: 0.10...0.28) }
+                sleep(until: deadline)
+                if isCancelled { return true }
+                emit(keyCode: code, flags: flags, source: source)
+                continue
+            }
+
+            for character in chunk {
             if isCancelled { return true }
 
             // Occasional mistake: wrong key, a beat, backspace, then the right one.
@@ -103,19 +139,9 @@ final class TypingEngine {
 
             if character == "\n" || character == "\r" {
                 emit(keyCode: CGKeyCode(kVK_Return), source: source)
-                if profile.clearAutoIndent {
-                    // Give the editor a moment to insert its indentation, then
-                    // select it. Typing the next character replaces the whole
-                    // selection at once; an empty selection changes nothing, so
-                    // this is harmless where nothing was auto-inserted.
-                    deadline += Double.random(in: 0.05...0.12)
-                    sleep(until: deadline)
-                    emit(keyCode: CGKeyCode(kVK_LeftArrow),
-                         flags: [.maskShift, .maskCommand],
-                         source: source)
-                }
             } else {
                 emit(String(character), source: source)
+            }
             }
         }
         return false

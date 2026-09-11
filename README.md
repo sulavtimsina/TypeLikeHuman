@@ -41,7 +41,19 @@ typehuman --delay 5 --wpm 60 < answer.txt   # text from stdin
 
 Flags: `--text` (otherwise stdin), `--delay` seconds of silence before the first keystroke, `--wpm`, `--typos` (0 to 0.3), `--jitter`, `--hesitation`, `--no-fix-indent`.
 
-Editors that auto-indent (HackerRank, VS Code, CodeMirror, Monaco) insert leading whitespace of their own when you press Return, which stacks with the indentation already in the text and walks the code to the right one line at a time — a staircase, and for Python a different program. So by default every newline is followed by a select-back-to-line-start: the next character typed replaces the whole selection at once, leaving exactly the indentation the text asked for, and an empty selection changes nothing where the editor added none. `--no-fix-indent` types the text byte for byte instead. The menu bar app is unaffected: `Profile.clearAutoIndent` defaults to off, and only the CLI turns it on. Whatever has keyboard focus when the delay runs out receives the text, so the delay is there for clicking into the target field. SIGTERM or Ctrl-C aborts it, during the pause or mid-word, the way Escape does in the app.
+### Typing code into an editor that indents by itself
+
+Editors like HackerRank's, or anything built on Monaco, Ace or CodeMirror, insert leading whitespace of their own when you press Return. Typing the text's spaces as well stacks the two, and since each line is indented from the last, the error compounds: the code walks to the right one line at a time, and lines that should dedent never come back — in Python, a different program.
+
+Nobody types leading spaces in such an editor. You press Return, take whatever indentation it gives you, and reach for Tab or Shift+Tab only when the level has to change. `--indent editor`, the default, does exactly that: the leading whitespace of the text is *read* rather than typed, and comes back out as keystrokes.
+
+Indentation is therefore relative. The first line goes in wherever the cursor already is, and each line after it is placed by the difference between the level the text asks for and the level the editor will have given — the previous line's level, plus one if that line ended in an opener like `{` or `:`. Nothing absolute is assumed, so a block lands correctly however deep the cursor started, and only Return, Tab and Shift+Tab are ever pressed, all of which a code editor handles itself. A line beginning with a closer is left alone, since `}` re-indents itself. The indent step is taken from the text, so two-space code is not turned into four.
+
+`--closers skip` handles the other way these editors help: `{` auto-inserts a `}`, and typing the text's own closer would leave a second one behind. Skip steps over the editor's copy with Down then End instead — again, what a person does.
+
+`--indent literal` types every space and tab exactly as given, which is what a plain text field wants. `--dry-run` prints the keystrokes and types nothing, which is the way to check any of this without a target.
+
+The menu bar app is unaffected: it hands the engine a string, and a plain string is still typed verbatim. Whatever has keyboard focus when the delay runs out receives the text, so the delay is there for clicking into the target field. SIGTERM or Ctrl-C aborts it, during the pause or mid-word, the way Escape does in the app.
 
 Exit codes tell the caller what went wrong: 0 typed it all, 2 aborted, 3 secure input was on so macOS dropped the keystrokes, 4 no Accessibility permission, 64 bad usage. Accessibility belongs to whichever app runs the binary — a terminal, or a script started from one — not to `typehuman` itself, so a terminal that already has the permission needs no new grant. Secure input is checked at the last moment rather than at launch, because the focused app (and therefore the answer) usually changes during the delay.
 
