@@ -51,6 +51,8 @@ Indentation is therefore relative. The first line goes in wherever the cursor al
 
 `--closers skip` handles the other way these editors help: `{` auto-inserts a `}`, and typing the text's own closer would leave a second one behind. Skip steps over the editor's copy with Down then End instead — again, what a person does.
 
+These editors also complete as you type, and that matters more than it sounds: while the suggestion list is open, Return inserts the highlighted suggestion instead of a line break, Tab accepts it, and Down walks the list. A line ending in a word — `x = nxt`, `return total` — leaves that list open, so the next Return silently drops a symbol like `XATTR_LIST_MAX` into the code. `--dismiss space`, the default, types a space first, which closes the list and costs only trailing whitespace; `--dismiss escape` is surer but the page around the editor may act on Escape, and `none` presses nothing.
+
 `--indent literal` types every space and tab exactly as given, which is what a plain text field wants. `--dry-run` prints the keystrokes and types nothing, which is the way to check any of this without a target.
 
 The menu bar app is unaffected: it hands the engine a string, and a plain string is still typed verbatim. Whatever has keyboard focus when the delay runs out receives the text, so the delay is there for clicking into the target field. SIGTERM or Ctrl-C aborts it, during the pause or mid-word, the way Escape does in the app.

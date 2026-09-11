@@ -33,6 +33,13 @@ struct TypeCLI {
                       skip  step over the one the editor auto-inserted with
                             Down then End, the way a person does, instead of
                             leaving a second copy behind
+      --dismiss     how to get rid of an autocomplete popup before pressing
+                    Return, Tab or Down, since those keys belong to the popup
+                    while it is open (default "space"):
+                      space   type a space, which closes the list and leaves
+                              only trailing whitespace behind
+                      escape  press Escape, surer but the page may act on it
+                      none    press nothing
       --dry-run     print the keystrokes it would send and exit, typing nothing
       --indent      how to handle indentation (default "editor"):
                       editor  type it the way a person does in an editor that
@@ -52,6 +59,7 @@ struct TypeCLI {
         var indentMode = "editor"
         var dryRun = false
         var skipClosers = false
+        var dismiss = "space"
 
         // ---- arguments ----
         var args = Array(CommandLine.arguments.dropFirst())
@@ -78,6 +86,11 @@ struct TypeCLI {
             case "--closers":
                 guard ["type", "skip"].contains(raw) else { fail("--closers wants type or skip") }
                 skipClosers = raw == "skip"
+            case "--dismiss":
+                guard ["space", "escape", "none"].contains(raw) else {
+                    fail("--dismiss wants space, escape or none")
+                }
+                dismiss = raw
             default:              fail("unknown option \(flag)")
             }
         }
@@ -88,7 +101,7 @@ struct TypeCLI {
         if dryRun {
             let strokes = indentMode == "literal"
                 ? TypingEngine.strokes(for: body)
-                : editorStrokes(for: body, skipAutoClosed: skipClosers)
+                : editorStrokes(for: body, skipAutoClosed: skipClosers, dismiss: dismiss)
             for stroke in strokes {
                 switch stroke {
                 case .text(let run):
@@ -97,7 +110,8 @@ struct TypeCLI {
                     let name = code == CGKeyCode(kVK_Return) ? "Return"
                              : code == CGKeyCode(kVK_Tab) ? "Tab"
                              : code == CGKeyCode(kVK_DownArrow) ? "Down"
-                             : code == CGKeyCode(kVK_End) ? "End" : "key \(code)"
+                             : code == CGKeyCode(kVK_End) ? "End"
+                             : code == CGKeyCode(kVK_Escape) ? "Escape" : "key \(code)"
                     print("press \(flags.contains(.maskShift) ? "Shift+" : "")\(name)")
                 }
             }
@@ -172,7 +186,9 @@ struct TypeCLI {
     /// A line that begins with a closer is left alone: `}` re-indents itself in
     /// every editor of this kind, and pressing Shift+Tab as well would take it
     /// one level too far.
-    static func editorStrokes(for text: String, skipAutoClosed: Bool = false) -> [TypingEngine.Stroke] {
+    static func editorStrokes(for text: String,
+                              skipAutoClosed: Bool = false,
+                              dismiss: String = "space") -> [TypingEngine.Stroke] {
         let lines = text.components(separatedBy: "\n")
         let unit = indentUnit(of: lines)
 
@@ -183,6 +199,7 @@ struct TypeCLI {
         var started = false
         var openBrackets = 0          // openers typed here, so closers the editor
                                       // will have inserted for us
+        var lastTyped = ""            // to tell whether a suggestion list is up
 
         for line in lines {
             let content = String(line.drop(while: { $0 == " " || $0 == "\t" }))
@@ -196,6 +213,7 @@ struct TypeCLI {
                 previousLevel = 0
                 previousOpened = opens(content)
                 openBrackets += openerBalance(content)
+                lastTyped = content
                 continue
             }
 
@@ -204,14 +222,17 @@ struct TypeCLI {
             // type a second one. No Return either — the bracket is on the line
             // below already, so a Return would only leave a blank line behind.
             if skipAutoClosed, !blank, onlyClosers(content), openBrackets > 0 {
+                append(dismissal: dismiss, after: lastTyped, to: &strokes)
                 strokes.append(.key(CGKeyCode(kVK_DownArrow), []))
                 strokes.append(.key(CGKeyCode(kVK_End), []))
                 openBrackets -= 1
                 previousLevel = max(0, (width(of: line, unit: unit) - (baseWidth ?? 0)) / unit)
                 previousOpened = false
+                lastTyped = content
                 continue
             }
 
+            append(dismissal: dismiss, after: lastTyped, to: &strokes)
             strokes.append(.key(CGKeyCode(kVK_Return), []))
 
             // Where the editor will have put the cursor after that Return.
@@ -222,6 +243,7 @@ struct TypeCLI {
                 // is measured from the same place.
                 previousLevel = given
                 previousOpened = false
+                lastTyped = ""
                 continue
             }
 
@@ -236,8 +258,26 @@ struct TypeCLI {
             previousLevel = wanted
             previousOpened = opens(content)
             openBrackets += openerBalance(content)
+            lastTyped = content
         }
         return strokes
+    }
+
+    /// An editor that completes as you type puts a suggestion list up whenever
+    /// the caret sits at the end of a word — and while that list is open, Return
+    /// inserts the highlighted suggestion instead of a line break, Tab accepts
+    /// it, and Down walks the list. So the list has to go before any of those
+    /// keys is pressed. A space closes it and costs only trailing whitespace,
+    /// which no compiler minds.
+    private static func append(dismissal: String,
+                               after typed: String,
+                               to strokes: inout [TypingEngine.Stroke]) {
+        guard let last = typed.last, last.isLetter || last.isNumber || last == "_" else { return }
+        switch dismissal {
+        case "space":  strokes.append(.text(" "))
+        case "escape": strokes.append(.key(CGKeyCode(kVK_Escape), []))
+        default:       break
+        }
     }
 
     /// Openers minus closers on a line, ignoring anything inside quotes.
