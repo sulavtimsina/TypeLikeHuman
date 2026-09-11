@@ -18,6 +18,13 @@ final class TypingEngine {
         var typoRate: Double = 0.20
         /// Chance per character of pausing as if thinking.
         var hesitationRate: Double = 0.03
+        /// Editors that auto-indent add their own leading whitespace when you
+        /// press Return, which then stacks with the indentation in the text and
+        /// walks the code to the right one line at a time. With this on, every
+        /// newline is followed by "select back to the start of the line", so the
+        /// first character of the next line overwrites whatever the editor put
+        /// there and the text's own indentation is what survives.
+        var clearAutoIndent: Bool = false
     }
 
     private let queue = DispatchQueue(label: "com.example.humantype.engine", qos: .userInitiated)
@@ -96,6 +103,17 @@ final class TypingEngine {
 
             if character == "\n" || character == "\r" {
                 emit(keyCode: CGKeyCode(kVK_Return), source: source)
+                if profile.clearAutoIndent {
+                    // Give the editor a moment to insert its indentation, then
+                    // select it. Typing the next character replaces the whole
+                    // selection at once; an empty selection changes nothing, so
+                    // this is harmless where nothing was auto-inserted.
+                    deadline += Double.random(in: 0.05...0.12)
+                    sleep(until: deadline)
+                    emit(keyCode: CGKeyCode(kVK_LeftArrow),
+                         flags: [.maskShift, .maskCommand],
+                         source: source)
+                }
             } else {
                 emit(String(character), source: source)
             }
@@ -159,10 +177,11 @@ final class TypingEngine {
         up.post(tap: .cghidEventTap)
     }
 
-    private func emit(keyCode: CGKeyCode, source: CGEventSource) {
+    private func emit(keyCode: CGKeyCode, flags: CGEventFlags = [], source: CGEventSource) {
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         else { return }
+        if !flags.isEmpty { down.flags = flags; up.flags = flags }
         stamp(down); stamp(up)
         down.post(tap: .cghidEventTap)
         Thread.sleep(forTimeInterval: Double.random(in: 0.010...0.030))

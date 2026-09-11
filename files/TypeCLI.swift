@@ -27,6 +27,11 @@ struct TypeCLI {
                     backspaced and corrected (default 0.2)
       --jitter      spread of the keystroke delay; higher is more erratic
       --hesitation  chance per character of a thinking pause
+      --no-fix-indent
+                    type the text exactly as given. By default each newline is
+                    followed by a select-to-line-start, so an editor that
+                    auto-indents cannot stack its own indentation on top of the
+                    text's and walk the code to the right
 
     Whatever has keyboard focus when the delay runs out receives the text, so
     click into the target field first. SIGTERM (or Ctrl-C) stops the typing.
@@ -34,6 +39,7 @@ struct TypeCLI {
 
     static func main() {
         var profile = TypingEngine.Profile()
+        profile.clearAutoIndent = true      // the common case is code into an editor
         var delay = 3.0
         var text: String?
 
@@ -45,6 +51,8 @@ struct TypeCLI {
                 print(usage)
                 exit(0)
             }
+            if flag == "--no-fix-indent" { profile.clearAutoIndent = false; continue }
+            if flag == "--fix-indent" { profile.clearAutoIndent = true; continue }
             guard let raw = args.first else { fail("\(flag) needs a value") }
             args.removeFirst()
 

@@ -39,7 +39,9 @@ typehuman --text "hello there"           # types it after a 3 second pause
 typehuman --delay 5 --wpm 60 < answer.txt   # text from stdin
 ```
 
-Flags: `--text` (otherwise stdin), `--delay` seconds of silence before the first keystroke, `--wpm`, `--typos` (0 to 0.3), `--jitter`, `--hesitation`. Whatever has keyboard focus when the delay runs out receives the text, so the delay is there for clicking into the target field. SIGTERM or Ctrl-C aborts it, during the pause or mid-word, the way Escape does in the app.
+Flags: `--text` (otherwise stdin), `--delay` seconds of silence before the first keystroke, `--wpm`, `--typos` (0 to 0.3), `--jitter`, `--hesitation`, `--no-fix-indent`.
+
+Editors that auto-indent (HackerRank, VS Code, CodeMirror, Monaco) insert leading whitespace of their own when you press Return, which stacks with the indentation already in the text and walks the code to the right one line at a time — a staircase, and for Python a different program. So by default every newline is followed by a select-back-to-line-start: the next character typed replaces the whole selection at once, leaving exactly the indentation the text asked for, and an empty selection changes nothing where the editor added none. `--no-fix-indent` types the text byte for byte instead. The menu bar app is unaffected: `Profile.clearAutoIndent` defaults to off, and only the CLI turns it on. Whatever has keyboard focus when the delay runs out receives the text, so the delay is there for clicking into the target field. SIGTERM or Ctrl-C aborts it, during the pause or mid-word, the way Escape does in the app.
 
 Exit codes tell the caller what went wrong: 0 typed it all, 2 aborted, 3 secure input was on so macOS dropped the keystrokes, 4 no Accessibility permission, 64 bad usage. Accessibility belongs to whichever app runs the binary — a terminal, or a script started from one — not to `typehuman` itself, so a terminal that already has the permission needs no new grant. Secure input is checked at the last moment rather than at launch, because the focused app (and therefore the answer) usually changes during the delay.
 
