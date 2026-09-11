@@ -14,5 +14,6 @@ mkdir -p "$here/bin"
 swiftc -O \
   -o "$here/bin/typehuman" \
   "$here/files/TypingEngine.swift" \
+  "$here/files/CodeTyping.swift" \
   "$here/files/TypeCLI.swift"
 echo "built $here/bin/typehuman"

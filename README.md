@@ -11,6 +11,7 @@ Repository: https://github.com/sulavtimsina/TypeLikeHuman
 - `files/TypingEngine.swift` — the timing, typo, and key-emission logic.
 - `files/HubstaffCountdown.swift` — the second menu bar item: a 10-minute countdown that stops the Hubstaff timer at zero via Hubstaff's scripted control CLI.
 - `files/TypeCLI.swift` — `typehuman`, a command line front end to the same engine, for other tools to call.
+- `files/CodeTyping.swift` — turns formatted source into the keystrokes a person presses in an editor that indents and closes brackets for you.
 - `build-cli.sh` — builds `typehuman` with plain swiftc, no Xcode project needed.
 - `files/BUILD.md` — how to generate the project, build, grant Accessibility, and where to tune behaviour.
 
@@ -49,7 +50,7 @@ Nobody types leading spaces in such an editor. You press Return, take whatever i
 
 Indentation is therefore relative. The first line goes in wherever the cursor already is, and each line after it is placed by the difference between the level the text asks for and the level the editor will have given — the previous line's level, plus one if that line ended in an opener like `{` or `:`. Nothing absolute is assumed, so a block lands correctly however deep the cursor started, and only Return, Tab and Shift+Tab are ever pressed, all of which a code editor handles itself. A line beginning with a closer is left alone, since `}` re-indents itself. The indent step is taken from the text, so two-space code is not turned into four.
 
-`--closers skip` handles the other way these editors help: `{` auto-inserts a `}`, and typing the text's own closer would leave a second one behind. Skip steps over the editor's copy with Down then End instead — again, what a person does.
+The other way these editors help is closing what you open: `(` gets a `)`, `"` gets its partner, `{` plus Return lays out the whole block. So with `--auto-close on`, the default, **no closing character is ever typed**. Each one in the text becomes a step over the editor's own copy: Right when it is still sitting beside the cursor, Down then End when a Return has moved it to a line of its own. `CodeTyper` tracks which brackets are open and on which line, and leaves anything inside a string or a comment alone, since editors do not close brackets in there. `--auto-close off` types them, for a target that does not help.
 
 These editors also complete as you type, and that matters more than it sounds: while the suggestion list is open, Return inserts the highlighted suggestion instead of a line break, Tab accepts it, and Down walks the list. A line ending in a word — `x = nxt`, `return total` — leaves that list open, so the next Return silently drops a symbol like `XATTR_LIST_MAX` into the code. `--dismiss space`, the default, types a space first, which closes the list and costs only trailing whitespace; `--dismiss escape` is surer but the page around the editor may act on Escape, and `none` presses nothing.
 
