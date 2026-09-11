@@ -1,0 +1,134 @@
+import AppKit
+import Carbon.HIToolbox
+
+/// `typehuman` — the same TypingEngine the menu bar app uses, driven from a
+/// terminal so other tools can ask for text to be typed.
+///
+///     typehuman --delay 3 --wpm 45 < answer.txt
+///     typehuman --text "hello there"
+///
+/// Text comes from `--text` or, with no such flag, from standard input. The
+/// process stays alive until the typing finishes; SIGTERM/SIGINT abort it
+/// mid-word, exactly like pressing Escape in the app.
+///
+/// Exit codes: 0 typed it all · 2 aborted · 3 secure input is on ·
+/// 4 no Accessibility permission · 64 bad usage.
+@main
+struct TypeCLI {
+
+    static let usage = """
+    usage: typehuman [--text <string>] [--delay <seconds>] [--wpm <n>]
+                     [--typos <0-0.3>] [--jitter <n>] [--hesitation <0-1>]
+
+      --text        what to type; if omitted, it is read from stdin
+      --delay       silent grace period before the first keystroke (default 3)
+      --wpm         words per minute, a word being five characters (default 40)
+      --typos       share of characters that get a neighbouring key first,
+                    backspaced and corrected (default 0.2)
+      --jitter      spread of the keystroke delay; higher is more erratic
+      --hesitation  chance per character of a thinking pause
+
+    Whatever has keyboard focus when the delay runs out receives the text, so
+    click into the target field first. SIGTERM (or Ctrl-C) stops the typing.
+    """
+
+    static func main() {
+        var profile = TypingEngine.Profile()
+        var delay = 3.0
+        var text: String?
+
+        // ---- arguments ----
+        var args = Array(CommandLine.arguments.dropFirst())
+        while let flag = args.first {
+            args.removeFirst()
+            if flag == "-h" || flag == "--help" {
+                print(usage)
+                exit(0)
+            }
+            guard let raw = args.first else { fail("\(flag) needs a value") }
+            args.removeFirst()
+
+            switch flag {
+            case "--text":        text = raw
+            case "--delay":       delay = number(raw, flag, min: 0, max: 600)
+            case "--wpm":         profile.wpm = number(raw, flag, min: 5, max: 200)
+            case "--typos":       profile.typoRate = number(raw, flag, min: 0, max: 0.3)
+            case "--jitter":      profile.jitter = number(raw, flag, min: 0, max: 2)
+            case "--hesitation":  profile.hesitationRate = number(raw, flag, min: 0, max: 1)
+            default:              fail("unknown option \(flag)")
+            }
+        }
+
+        let body = text ?? readStdin()
+        guard !body.isEmpty else { fail("nothing to type") }
+
+        // Accessibility is a property of this process, so check it now and save
+        // the caller the wait. Secure input depends on what is focused, which is
+        // exactly what the grace period is for changing, so that one is checked
+        // at the last moment instead.
+        guard AXIsProcessTrusted() else {
+            complain("""
+            no Accessibility permission, so keystrokes would go nowhere.
+            Grant it to whichever app runs this (Terminal, iTerm, VS Code, …) in
+            System Settings → Privacy & Security → Accessibility, then restart it.
+            """)
+            exit(4)
+        }
+
+        // ---- type it ----
+        let engine = TypingEngine()
+        engine.onFinish = { aborted in exit(aborted ? 2 : 0) }
+
+        // SIGTERM/SIGINT must also work during the grace period, so the delay
+        // is a main queue timer rather than a sleep: the signal handler and the
+        // timer both land on the main queue, in order, never at once.
+        for sig in [SIGTERM, SIGINT] {
+            signal(sig, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            source.setEventHandler {
+                aborted = true
+                engine.cancel()
+                if !engine.isRunning { exit(2) }   // still in the grace period
+            }
+            source.resume()
+            signalSources.append(source)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, delay)) {
+            if aborted { exit(2) }
+            if IsSecureEventInputEnabled() {
+                complain("secure input is on for the focused app, so macOS would drop every "
+                       + "keystroke. In Terminal that is Terminal \u{25B8} Secure Keyboard Entry; "
+                       + "a focused password field does the same.")
+                exit(3)
+            }
+            engine.type(body, profile: profile)
+        }
+        RunLoop.main.run()   // onFinish is delivered on the main queue and exits
+    }
+
+    /// Held for the process lifetime; a released DispatchSource stops firing.
+    private static var signalSources: [DispatchSourceSignal] = []
+    private static var aborted = false
+
+    private static func readStdin() -> String {
+        let data = FileHandle.standardInput.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    private static func number(_ raw: String, _ flag: String, min lo: Double, max hi: Double) -> Double {
+        guard let value = Double(raw), value >= lo, value <= hi else {
+            fail("\(flag) wants a number between \(lo) and \(hi), got \(raw)")
+        }
+        return value
+    }
+
+    private static func complain(_ message: String) {
+        FileHandle.standardError.write(Data("typehuman: \(message)\n".utf8))
+    }
+
+    private static func fail(_ message: String) -> Never {
+        complain(message)
+        exit(64)
+    }
+}
