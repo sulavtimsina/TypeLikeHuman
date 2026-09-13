@@ -15,7 +15,7 @@ final class TypingEngine {
         /// Spread of the lognormal delay. Higher is more erratic.
         var jitter: Double = 0.34
         /// Chance per character of hitting a neighbouring key first (0 to 0.3).
-        var typoRate: Double = 0.20
+        var typoRate: Double = 0.02
         /// Chance per character of pausing as if thinking.
         var hesitationRate: Double = 0.03
     }
@@ -115,7 +115,7 @@ final class TypingEngine {
             if let wrong = Self.neighbour(of: character), Double.random(in: 0..<1) < profile.typoRate {
                 deadline += delay(base: base, jitter: profile.jitter)
                 sleep(until: deadline)
-                emit(String(wrong), source: source)
+                emit(wrong, source: source)
 
                 deadline += Double.random(in: 0.18...0.45) // noticing it
                 sleep(until: deadline)
@@ -140,7 +140,7 @@ final class TypingEngine {
             if character == "\n" || character == "\r" {
                 emit(keyCode: CGKeyCode(kVK_Return), source: source)
             } else {
-                emit(String(character), source: source)
+                emit(character, source: source)
             }
             }
         }
@@ -188,7 +188,21 @@ final class TypingEngine {
 
     // MARK: - Event posting
 
-    private func emit(_ text: String, source: CGEventSource) {
+    /// One character as the key a person would actually press. Going through
+    /// the layout matters: an event carrying only a unicode string is posted on
+    /// key code 0 with no modifier, which the text input system is free to
+    /// reinterpret — press-and-hold and dead-key composition both key off the
+    /// code, and they swallow exactly the characters that take accents (the
+    /// vowels, n, c), so those go missing while consonants come through.
+    private func emit(_ character: Character, source: CGEventSource) {
+        if let key = Self.key(for: character) {
+            emit(keyCode: key.code, flags: key.flags, source: source)
+        } else {
+            emit(text: String(character), source: source)   // not on this layout
+        }
+    }
+
+    private func emit(text: String, source: CGEventSource) {
         var buffer = Array(text.utf16)
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
@@ -207,7 +221,8 @@ final class TypingEngine {
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         else { return }
-        if !flags.isEmpty { down.flags = flags; up.flags = flags }
+        down.flags = flags       // set even when empty: whatever the user is
+        up.flags = flags         // physically holding must not leak into ours
         stamp(down); stamp(up)
         down.post(tap: .cghidEventTap)
         Thread.sleep(forTimeInterval: Double.random(in: 0.010...0.030))
@@ -217,6 +232,52 @@ final class TypingEngine {
     private func stamp(_ event: CGEvent) {
         event.setIntegerValueField(.eventSourceUserData, value: Self.eventSignature)
     }
+
+    // MARK: - The keyboard
+
+    private struct Key { let code: CGKeyCode; let flags: CGEventFlags }
+
+    /// Character to keystroke, read from the layout that is actually selected,
+    /// so a non-US layout is typed with its own keys. Unshifted first, so `a`
+    /// is the plain key and `A` the shifted one; anything needing Option or a
+    /// dead key is left out and falls back to the unicode string.
+    private static let keys: [Character: Key] = {
+        func layout(from source: TISInputSource?) -> Data? {
+            guard let source,
+                  let pointer = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
+            else { return nil }
+            return Unmanaged<CFData>.fromOpaque(pointer).takeUnretainedValue() as Data
+        }
+        guard let data = layout(from: TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue())
+                      ?? layout(from: TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue())
+        else { return [:] }
+
+        var map: [Character: Key] = [:]
+        data.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            let keyboard = base.assumingMemoryBound(to: UCKeyboardLayout.self)
+            let kind = UInt32(LMGetKbdType())
+            for (modifiers, flags) in [(UInt32(0), CGEventFlags()), (UInt32(shiftKey >> 8), .maskShift)] {
+                for code in UInt16(0)..<128 {
+                    var dead: UInt32 = 0
+                    var length = 0
+                    var characters = [UniChar](repeating: 0, count: 4)
+                    let status = UCKeyTranslate(keyboard, code, UInt16(kUCKeyActionDown), modifiers,
+                                                kind, OptionBits(kUCKeyTranslateNoDeadKeysBit),
+                                                &dead, 4, &length, &characters)
+                    guard status == noErr, length == 1,
+                          let character = String(utf16CodeUnits: characters, count: 1).first,
+                          let scalar = character.unicodeScalars.first, scalar.value >= 0x20,
+                          map[character] == nil
+                    else { continue }
+                    map[character] = Key(code: CGKeyCode(code), flags: flags)
+                }
+            }
+        }
+        return map
+    }()
+
+    private static func key(for character: Character) -> Key? { keys[character] }
 
     // MARK: - Typos
 
