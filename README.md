@@ -40,7 +40,19 @@ typehuman --text "hello there"           # types it after a 3 second pause
 typehuman --delay 5 --wpm 60 < answer.txt   # text from stdin
 ```
 
-Flags: `--text` (otherwise stdin), `--delay` seconds of silence before the first keystroke, `--wpm`, `--typos` (0 to 0.3), `--jitter`, `--hesitation`, `--no-fix-indent`.
+Flags: `--text` (otherwise stdin), `--delay` seconds of silence before the first keystroke, `--wpm`, `--typos` (0 to 0.3), `--jitter`, `--hesitation`, `--speed-file`, `--indent`, `--auto-close`, `--dismiss`, `--dry-run`.
+
+### Changing the speed while it types
+
+`--wpm` sets the pace, but a long answer takes minutes and you may want it faster halfway through. `--speed-file <path>` names a file holding nothing but a number of words per minute; it is re-read between keystrokes, so writing a new number into it changes the pace of the run already in progress:
+
+```sh
+echo 45 > /tmp/pace
+typehuman --speed-file /tmp/pace < answer.txt &
+echo 120 > /tmp/pace      # it speeds up on the next keystroke
+```
+
+Anything outside 5–400 wpm, or unreadable, leaves the speed where it was.
 
 ### Typing code into an editor that indents by itself
 

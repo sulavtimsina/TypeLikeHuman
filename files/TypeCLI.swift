@@ -31,6 +31,9 @@ struct TypeCLI {
                     quote itself (default "on"). With it on, no closer is ever
                     typed: the cursor steps over the editor's own with Right, or
                     Down and End when a Return has moved it to its own line
+      --speed-file  a file holding the words per minute to type at, re-read as
+                    it types: write a new number into it and the run already in
+                    progress changes pace. --wpm is the speed until it is read
       --dry-run     print the keystrokes it would send and exit, typing nothing
       --indent      how to handle indentation (default "editor"):
                       editor  type it the way a person does in an editor that
@@ -51,6 +54,7 @@ struct TypeCLI {
         var dryRun = false
         var autoClose = true
         var dismiss = "space"
+        var speedPath: String?
 
         // ---- arguments ----
         var args = Array(CommandLine.arguments.dropFirst())
@@ -80,6 +84,7 @@ struct TypeCLI {
             case "--closers":   // what this was called before --auto-close
                 guard ["type", "skip"].contains(raw) else { fail("--closers wants type or skip") }
                 autoClose = raw == "skip"
+            case "--speed-file":  speedPath = raw
             case "--dismiss":
                 guard ["space", "escape", "none"].contains(raw) else {
                     fail("--dismiss wants space, escape or none")
@@ -131,6 +136,10 @@ struct TypeCLI {
         // ---- type it ----
         let engine = TypingEngine()
         engine.onFinish = { aborted in exit(aborted ? 2 : 0) }
+        if let path = speedPath {
+            let speed = SpeedFile(path: path)
+            engine.pace = { speed.wpm() }
+        }
 
         // SIGTERM/SIGINT must also work during the grace period, so the delay
         // is a main queue timer rather than a sleep: the signal handler and the
@@ -164,6 +173,32 @@ struct TypeCLI {
             engine.type(strokes, profile: profile)
         }
         RunLoop.main.run()   // onFinish is delivered on the main queue and exits
+    }
+
+    /// The words per minute, read from a file as the typing goes out so that
+    /// whoever started this can speed it up or slow it down without stopping it.
+    /// Re-read at most five times a second; anything unreadable or out of range
+    /// leaves the speed where it was.
+    private final class SpeedFile {
+        private let url: URL
+        private let lock = NSLock()
+        private var value: Double?
+        private var lastRead = Date.distantPast
+
+        init(path: String) { url = URL(fileURLWithPath: path) }
+
+        func wpm() -> Double? {
+            lock.lock(); defer { lock.unlock() }
+            let now = Date()
+            if now.timeIntervalSince(lastRead) < 0.2 { return value }
+            lastRead = now
+            guard let text = try? String(contentsOf: url, encoding: .utf8),
+                  let number = Double(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  number >= 5, number <= 400
+            else { return value }
+            value = number
+            return value
+        }
     }
 
     /// Held for the process lifetime; a released DispatchSource stops firing.

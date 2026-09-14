@@ -36,6 +36,12 @@ final class TypingEngine {
     /// Called on the main queue when typing finishes or is aborted.
     var onFinish: ((_ aborted: Bool) -> Void)?
 
+    /// Asked for the words per minute to use, before every keystroke. Returning
+    /// nil means "whatever the profile says". This is what makes the speed
+    /// adjustable mid-run: the pace of the keystrokes still to come changes
+    /// without stopping and restarting the typing.
+    var pace: (() -> Double?)?
+
     var isRunning: Bool {
         lock.lock(); defer { lock.unlock() }
         return running
@@ -89,12 +95,12 @@ final class TypingEngine {
             state: .eventSuppressionStateSuppressionInterval
         )
 
-        let base = 60.0 / (profile.wpm * 5.0) // mean seconds between keystrokes
         var deadline = Date().timeIntervalSinceReferenceDate
         var sinceLastHesitation = 0
 
         for stroke in strokes {
             if isCancelled { return true }
+            var base = interval(profile)   // mean seconds between keystrokes, now
 
             // A named key: Return, Tab, Shift+Tab. No typos on these — people
             // do not mistype Return — but they still take a beat.
@@ -110,6 +116,7 @@ final class TypingEngine {
 
             for character in chunk {
             if isCancelled { return true }
+            base = interval(profile)
 
             // Occasional mistake: wrong key, a beat, backspace, then the right one.
             if let wrong = Self.neighbour(of: character), Double.random(in: 0..<1) < profile.typoRate {
@@ -158,6 +165,12 @@ final class TypingEngine {
     }
 
     // MARK: - Timing
+
+    /// Mean seconds between keystrokes at the speed asked for right now.
+    private func interval(_ profile: Profile) -> Double {
+        let wpm = min(max(pace?() ?? profile.wpm, 5), 400)
+        return 60.0 / (wpm * 5.0)
+    }
 
     /// Lognormal around `base`. Real typing has a hard floor and a long tail of
     /// slow keystrokes, which a uniform distribution does not reproduce.
